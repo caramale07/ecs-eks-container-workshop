@@ -8,6 +8,12 @@ def response(path):
     if path == '/healthz':
         return (503 if os.getenv('FORCE_UNHEALTHY') == 'true' else 200), {'status':'unhealthy' if os.getenv('FORCE_UNHEALTHY') == 'true' else 'ok'}
     if path in ('/api/info','/version'): return 200, info
+    if path == '/api/compare':
+        return 200, {'comparison':[
+            {'capability':'Application definition','ecs':'Task definition and ECS service','eks':'Kubernetes Deployment and Service'},
+            {'capability':'Scheduling','ecs':'AWS ECS scheduler on Fargate','eks':'Kubernetes scheduler on managed EC2 nodes'},
+            {'capability':'Recovery','ecs':'Deployment circuit breaker rollback','eks':'Readiness probes and explicit rollout undo'},
+            {'capability':'Scaling','ecs':'Service desired task count','eks':'Deployment replica count'}]}
     return 404, {'error':'not found'}
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):

@@ -12,5 +12,10 @@ class AppTests(unittest.TestCase):
         try:
             status,data=app.response('/api/info');self.assertEqual(status,200);self.assertEqual(data['commit'],'test-sha');self.assertEqual(data['platform'],'EKS');self.assertRegex(data['version'],r'^\d+\.\d+\.\d+$')
         finally:os.environ.pop('BUILD_REVISION');os.environ.pop('PLATFORM')
+    def test_comparison_enhancement(self):
+        status, data = app.response('/api/compare')
+        self.assertEqual(status, 200)
+        self.assertEqual(len(data['comparison']), 4)
+        self.assertTrue(all(row['ecs'] and row['eks'] for row in data['comparison']))
     def test_not_found(self):self.assertEqual(app.response('/absent')[0],404)
 if __name__=='__main__':unittest.main()

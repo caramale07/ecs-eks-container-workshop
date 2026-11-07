@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS EKS Jenkins student lab using existing AWS Academy roles
+Parameters:
+  VpcId: {Type: 'AWS::EC2::VPC::Id'}
+  SubnetIds: {Type: 'List<AWS::EC2::Subnet::Id>'}
+  WorkstationCidr: {Type: String, AllowedPattern: '([0-9]{1,3}\.){3}[0-9]{1,3}/32'}
+  EksClusterRoleArn: {Type: String}
+  EksNodeRoleArn: {Type: String}
+  KubernetesVersion: {Type: String, Default: '1.35'}
+  JenkinsAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+Resources:
+  JenkinsSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties: {GroupDescription: Jenkins administration through SSM only, VpcId: !Ref VpcId}
+  ApplicationSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS application accessible from Jenkins test runner only
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 8080, ToPort: 8080, SourceSecurityGroupId: !Ref JenkinsSG}
+  ControlPlaneSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Private EKS API access from Jenkins
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, SourceSecurityGroupId: !Ref JenkinsSG}
+  JenkinsHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref JenkinsAmi
+      InstanceType: t3.large
+      IamInstanceProfile: LabInstanceProfile
+      SubnetId: !Select [0, !Ref SubnetIds]
+      SecurityGroupIds: [!Ref JenkinsSG]
+      MetadataOptions: {HttpTokens: required, HttpEndpoint: enabled, HttpPutResponseHopLimit: 2}
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: {VolumeSize: 40, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true}
+      Tags: [{Key: Name, Value: csci-jenkins}, {Key: Project, Value: ECS-EKS-CICD}]
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker git python3
+          systemctl enable --now docker amazon-ssm-agent
+          mkdir -p /opt/csci-cicd
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: csci-container-lab
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"Keep latest five lab images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":5},"action":{"type":"expire"}}]}'
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties: {ClusterName: csci-container-lab}
+  AuditBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - {Id: ExpireLabReports, Status: Enabled, ExpirationInDays: 7}
+  AppLogs:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /csci/container-lab/ecs, RetentionInDays: 7}
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: csci-container-lab
+      Version: !Ref KubernetesVersion
+      RoleArn: !Ref EksClusterRoleArn
+      AccessConfig: {AuthenticationMode: API_AND_CONFIG_MAP, BootstrapClusterCreatorAdminPermissions: true}
+      ResourcesVpcConfig:
+        SubnetIds: !Ref SubnetIds
+        SecurityGroupIds: [!Ref ControlPlaneSG]
+        EndpointPrivateAccess: true
+        EndpointPublicAccess: true
+        PublicAccessCidrs: [!Ref WorkstationCidr]
+      Tags: [{Key: Project, Value: ECS-EKS-CICD}]
+  JenkinsAccess:
+    Type: AWS::EKS::AccessEntry
+    Properties:
+      ClusterName: !Ref EksCluster
+      PrincipalArn: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/LabRole
+      Type: STANDARD
+      AccessPolicies:
+        - PolicyArn: !Sub arn:${AWS::Partition}:eks::aws:cluster-access-policy/AmazonEKSEditPolicy
+          AccessScope: {Type: namespace, Namespaces: [workshop]}
+  Nodes:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref EksCluster
+      NodegroupName: workshop-nodes
+      NodeRole: !Ref EksNodeRoleArn
+      Subnets: !Ref SubnetIds
+      InstanceTypes: [t3.medium]
+      AmiType: AL2023_x86_64_STANDARD
+      DiskSize: 20
+      ScalingConfig: {MinSize: 1, DesiredSize: 1, MaxSize: 2}
+      Tags: {Project: ECS-EKS-CICD}
+Outputs:
+  JenkinsId: {Value: !Ref JenkinsHost}
+  EcrUri: {Value: !GetAtt Repository.RepositoryUri}
+  EcsCluster: {Value: !Ref EcsCluster}
+  EksCluster: {Value: !Ref EksCluster}
+  AppSecurityGroup: {Value: !Ref ApplicationSG}
+  SubnetIds: {Value: !Join [',', !Ref SubnetIds]}
+  LogGroup: {Value: !Ref AppLogs}
+  AuditBucket: {Value: !Ref AuditBucket}

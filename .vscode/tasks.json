@@ -1,0 +1,191 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "0 Prepare workstation tools",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/check_tools.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "1 Prepare Kubernetes namespace",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "namespace"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "2 Prepare Jenkins",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "jenkins",
+        "${input:githubRepo}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "3 Open private Jenkins tunnel",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "tunnel",
+        "jenkins"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "4 Test application",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-v"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": [],
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "5 Refresh deployed app previews",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "previews"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "6 Open private ECS preview",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "tunnel",
+        "ecs"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "7 Open private EKS preview",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "scripts/lab_tools.py",
+        "tunnel",
+        "eks"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "windows": {
+        "command": "python"
+      }
+    },
+    {
+      "label": "Preview local enhancement",
+      "type": "process",
+      "command": "python3",
+      "args": [
+        "app/server.py"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "PORT": "18083"
+        }
+      },
+      "isBackground": true,
+      "problemMatcher": [],
+      "windows": {
+        "command": "python"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "githubRepo",
+      "type": "promptString",
+      "description": "Your GitHub repository HTTPS or SSH URL"
+    }
+  ]
+}

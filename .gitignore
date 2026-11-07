@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.pem
+*credentials*
+.kube/
+artifacts/
+workshop-resources.env
+.DS_Store
+.lab/
